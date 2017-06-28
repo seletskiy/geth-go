@@ -7,11 +7,17 @@ import (
 	"math/big"
 	"math/rand"
 	"net/http"
+
+	hierr "github.com/reconquest/hierr-go"
 )
 
 const (
 	// BlockLatest represents latest available block.
 	BlockLatest = "latest"
+)
+
+const (
+	ErrorCodeAuthenticationNeeded = -32000
 )
 
 // Client connects to geth daemon and provides API for JSON RPC.
@@ -36,7 +42,7 @@ func NewLocalClient() *Client {
 
 // GetBalance returns balance for specified address. Note, that address should
 // begin with 0x prefix.
-func (client *Client) GetBalance(address string) (*big.Int, error) {
+func (client *Client) GetBalance(address string) (*Wei, error) {
 	reply, err := client.Call("eth_getBalance", address, BlockLatest)
 	if err != nil {
 		return nil, fmt.Errorf(
@@ -64,7 +70,73 @@ func (client *Client) GetBalance(address string) (*big.Int, error) {
 		)
 	}
 
-	return &result, nil
+	return &Wei{result}, nil
+}
+
+// SendTransaction sends specified amount of wei to specified address.
+func (client *Client) SendTransaction(
+	from string,
+	to string,
+	value *Wei,
+	options ...string,
+) (*Transaction, error) {
+	amount, err := EncodeHex(value)
+	if err != nil {
+		return nil, err
+	}
+
+	transaction := &Transaction{
+		From:  from,
+		To:    to,
+		Value: amount,
+	}
+
+	response, err := client.Call("eth_sendTransaction", transaction)
+	if err != nil {
+		return nil, err
+	}
+
+	err = json.Unmarshal(response, &transaction.ID)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"unable to unmarshal transaction ID %q: %s",
+			string(response),
+			err,
+		)
+	}
+
+	return transaction, nil
+}
+
+// UnlockAccount unlocks specified account (only if feature is enabled in geth).
+func (client *Client) UnlockAccount(address string, password string) error {
+	_, err := client.Call("personal_unlockAccount", address, password)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// GetVersion returns version of connected network.
+func (client *Client) GetVersion() (string, error) {
+	response, err := client.Call("net_version")
+	if err != nil {
+		return "", err
+	}
+
+	var version string
+
+	err = json.Unmarshal(response, &version)
+	if err != nil {
+		return "", hierr.Errorf(
+			err,
+			"unable to unmarshal version: %q",
+			response,
+		)
+	}
+
+	return version, nil
 }
 
 // Call is a generic call to JSON RPC of geth daemon.
@@ -136,6 +208,10 @@ func (client *Client) Call(
 	}
 
 	if reply.Error.Code != 0 {
+		if reply.Error.Code == ErrorCodeAuthenticationNeeded {
+			return nil, AuthenticationNeededError{reply.Error.Message}
+		}
+
 		return nil, fmt.Errorf(
 			"error while processing request (code %d): %s",
 			reply.Error.Code,
