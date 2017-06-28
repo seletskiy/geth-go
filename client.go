@@ -109,8 +109,12 @@ func (client *Client) SendTransaction(
 }
 
 // UnlockAccount unlocks specified account (only if feature is enabled in geth).
-func (client *Client) UnlockAccount(address string, password string) error {
-	_, err := client.Call("personal_unlockAccount", address, password)
+func (client *Client) UnlockAccount(
+	address string,
+	password string,
+	duration int,
+) error {
+	_, err := client.Call("personal_unlockAccount", address, password, duration)
 	if err != nil {
 		return err
 	}
