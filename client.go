@@ -73,6 +73,74 @@ func (client *Client) GetBalance(address string) (*Wei, error) {
 	return &Wei{result}, nil
 }
 
+// GetGasPrice returns current gas price in wei.
+func (client *Client) GetGasPrice() (*Wei, error) {
+	reply, err := client.Call("eth_gasPrice")
+	if err != nil {
+		return nil, fmt.Errorf(
+			`unable to get gas price: %s`, err,
+		)
+	}
+
+	var (
+		result   big.Int
+		envelope string
+	)
+
+	err = json.Unmarshal(reply, &envelope)
+	if err != nil {
+		return nil, err
+	}
+
+	err = DecodeHex(envelope, &result)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Wei{result}, nil
+}
+
+// EstimateGas returns gas estimation for transaction.
+func (client *Client) EstimateGas(
+	from string,
+	to string,
+	value *Wei,
+	options ...string,
+) (*Wei, error) {
+	amount, err := EncodeHex(value)
+	if err != nil {
+		return nil, err
+	}
+
+	transaction := &Transaction{
+		From:  from,
+		To:    to,
+		Value: amount,
+	}
+
+	reply, err := client.Call("eth_estimateGas", transaction)
+	if err != nil {
+		return nil, err
+	}
+
+	var (
+		result   big.Int
+		envelope string
+	)
+
+	err = json.Unmarshal(reply, &envelope)
+	if err != nil {
+		return nil, err
+	}
+
+	err = DecodeHex(envelope, &result)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Wei{result}, nil
+}
+
 // SendTransaction sends specified amount of wei to specified address.
 func (client *Client) SendTransaction(
 	from string,

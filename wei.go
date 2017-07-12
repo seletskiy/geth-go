@@ -34,7 +34,7 @@ func (wei *Wei) Text(precision int) string {
 	var (
 		length = int(math.Log10(float64(OneEtherInWei)))
 
-		integral, fractional = wei.Ether()
+		integral, fractional = wei.Parts()
 	)
 
 	return fmt.Sprintf(
@@ -47,7 +47,7 @@ func (wei *Wei) Text(precision int) string {
 	)
 }
 
-func (wei *Wei) Ether() (*big.Int, *big.Int) {
+func (wei *Wei) Parts() (*big.Int, *big.Int) {
 	var (
 		amount  big.Int
 		modulus big.Int
@@ -57,4 +57,15 @@ func (wei *Wei) Ether() (*big.Int, *big.Int) {
 	amount.Set(&wei.Int)
 
 	return amount.DivMod(&amount, divider, &modulus)
+}
+
+func (wei *Wei) Ether() float64 {
+	value := big.NewFloat(0).SetInt(&wei.Int)
+
+	amount, _ := value.Quo(
+		value,
+		big.NewFloat(0).SetInt64(OneEtherInWei),
+	).Float64()
+
+	return amount
 }
